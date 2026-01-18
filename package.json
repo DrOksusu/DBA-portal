@@ -1,0 +1,32 @@
+{
+  "name": "dba-portal",
+  "version": "1.0.0",
+  "description": "VIBE 치과 경영 분석 시스템 - 마이크로서비스 기반 풀스택 웹 애플리케이션",
+  "private": true,
+  "workspaces": [
+    "shared/*",
+    "services/*",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "docker-compose -f docker-compose.dev.yml up",
+    "dev:build": "docker-compose -f docker-compose.dev.yml up --build",
+    "prod": "docker-compose -f docker-compose.yml up -d",
+    "prod:build": "docker-compose -f docker-compose.yml up -d --build",
+    "down": "docker-compose down",
+    "logs": "docker-compose logs -f",
+    "migrate:all": "bash scripts/migrate-all.sh",
+    "clean": "docker-compose down -v --rmi local"
+  },
+  "keywords": [
+    "dental",
+    "management",
+    "microservices",
+    "typescript"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

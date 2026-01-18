@@ -1,0 +1,153 @@
+version: '3.8'
+
+services:
+  # ============ API Gateway ============
+  gateway:
+    build: ./gateway
+    ports:
+      - "80:80"
+    depends_on:
+      - auth-service
+      - revenue-service
+      - hr-service
+      - inventory-service
+      - marketing-service
+      - clinic-service
+    networks:
+      - vibe-network
+    restart: always
+
+  # ============ Auth Service ============
+  auth-service:
+    build: ./services/auth-service
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${AUTH_DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - COOKIE_DOMAIN=${COOKIE_DOMAIN}
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - vibe-network
+    restart: always
+
+  # ============ Revenue Service ============
+  revenue-service:
+    build: ./services/revenue-service
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${REVENUE_DATABASE_URL}
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
+      - AUTH_SERVICE_URL=http://auth-service:3001
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - vibe-network
+    restart: always
+
+  # ============ HR Service ============
+  hr-service:
+    build: ./services/hr-service
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${HR_DATABASE_URL}
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
+      - REVENUE_SERVICE_URL=http://revenue-service:3002
+      - CLINIC_SERVICE_URL=http://clinic-service:3006
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - vibe-network
+    restart: always
+
+  # ============ Inventory Service ============
+  inventory-service:
+    build: ./services/inventory-service
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${INVENTORY_DATABASE_URL}
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - vibe-network
+    restart: always
+
+  # ============ Marketing Service ============
+  marketing-service:
+    build: ./services/marketing-service
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${MARKETING_DATABASE_URL}
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
+      - SOLAPI_API_KEY=${SOLAPI_API_KEY}
+      - SOLAPI_API_SECRET=${SOLAPI_API_SECRET}
+      - SOLAPI_SENDER=${SOLAPI_SENDER}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - vibe-network
+    restart: always
+
+  # ============ Clinic Service ============
+  clinic-service:
+    build: ./services/clinic-service
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${CLINIC_DATABASE_URL}
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - vibe-network
+    restart: always
+
+  # ============ MySQL ============
+  mysql:
+    image: mysql:8.0
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./scripts/init-databases.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - vibe-network
+    restart: always
+
+  # ============ Frontend ============
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+    depends_on:
+      - gateway
+    networks:
+      - vibe-network
+    restart: always
+
+networks:
+  vibe-network:
+    driver: bridge
+
+volumes:
+  mysql-data:

@@ -1,0 +1,180 @@
+version: '3.8'
+
+services:
+  # ============ API Gateway ============
+  gateway:
+    build: ./gateway
+    ports:
+      - "80:80"
+    depends_on:
+      - auth-service
+      - revenue-service
+      - hr-service
+      - inventory-service
+      - marketing-service
+      - clinic-service
+    networks:
+      - vibe-network
+
+  # ============ Auth Service ============
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./services/auth-service/src:/app/src
+      - ./services/auth-service/prisma:/app/prisma
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=${AUTH_DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - COOKIE_DOMAIN=localhost
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - vibe-network
+
+  # ============ Revenue Service ============
+  revenue-service:
+    build:
+      context: ./services/revenue-service
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./services/revenue-service/src:/app/src
+      - ./services/revenue-service/prisma:/app/prisma
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=${REVENUE_DATABASE_URL}
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
+      - AUTH_SERVICE_URL=http://auth-service:3001
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - vibe-network
+
+  # ============ HR Service ============
+  hr-service:
+    build:
+      context: ./services/hr-service
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./services/hr-service/src:/app/src
+      - ./services/hr-service/prisma:/app/prisma
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=${HR_DATABASE_URL}
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
+      - REVENUE_SERVICE_URL=http://revenue-service:3002
+      - CLINIC_SERVICE_URL=http://clinic-service:3006
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - vibe-network
+
+  # ============ Inventory Service ============
+  inventory-service:
+    build:
+      context: ./services/inventory-service
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./services/inventory-service/src:/app/src
+      - ./services/inventory-service/prisma:/app/prisma
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=${INVENTORY_DATABASE_URL}
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - vibe-network
+
+  # ============ Marketing Service ============
+  marketing-service:
+    build:
+      context: ./services/marketing-service
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./services/marketing-service/src:/app/src
+      - ./services/marketing-service/prisma:/app/prisma
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=${MARKETING_DATABASE_URL}
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
+      - SOLAPI_API_KEY=${SOLAPI_API_KEY}
+      - SOLAPI_API_SECRET=${SOLAPI_API_SECRET}
+      - SOLAPI_SENDER=${SOLAPI_SENDER}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - vibe-network
+
+  # ============ Clinic Service ============
+  clinic-service:
+    build:
+      context: ./services/clinic-service
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./services/clinic-service/src:/app/src
+      - ./services/clinic-service/prisma:/app/prisma
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=${CLINIC_DATABASE_URL}
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - vibe-network
+
+  # ============ MySQL ============
+  mysql:
+    image: mysql:8.0
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+    volumes:
+      - mysql-data-dev:/var/lib/mysql
+      - ./scripts/init-databases.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - vibe-network
+
+  # ============ Frontend ============
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost/api
+    depends_on:
+      - gateway
+    networks:
+      - vibe-network
+
+networks:
+  vibe-network:
+    driver: bridge
+
+volumes:
+  mysql-data-dev:
