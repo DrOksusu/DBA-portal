@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Clinic {
+  id          String   @id @default(uuid())
+  name        String
+  code        String?  @unique
+  address     String?
+  phone       String?
+  logoUrl     String?  @map("logo_url")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  teams       Team[]
+
+  @@map("clinics")
+}
+
+model Team {
+  id         String   @id @default(uuid())
+  clinicId   String   @map("clinic_id")
+  teamName   String   @map("team_name")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  clinic     Clinic       @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  members    TeamMember[]
+
+  @@unique([clinicId, teamName])
+  @@map("teams")
+}
+
+model TeamMember {
+  id         String   @id @default(uuid())
+  teamId     String   @map("team_id")
+  employeeId String   @map("employee_id")
+  joinedAt   DateTime @default(now()) @map("joined_at")
+
+  team       Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, employeeId])
+  @@index([employeeId])
+  @@map("team_members")
+}
+
+model UserPreference {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  clinicId  String?  @map("clinic_id")
+  key       String
+  value     Json
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, key])
+  @@index([clinicId])
+  @@map("user_preferences")
+}
