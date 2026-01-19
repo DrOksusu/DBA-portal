@@ -1,0 +1,84 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model DailyReport {
+  id              String          @id @default(uuid())
+  clinicId        String          @map("clinic_id")
+  userId          String          @map("user_id")
+  reportDate      String          @map("report_date") // YYYY-MM-DD
+  type            DailyReportType
+
+  // 공통 필드
+  chartNumber     String?         @map("chart_number")
+  patientName     String?         @map("patient_name")
+  memo            String?         @db.Text
+
+  // 수입 (INCOME) 필드
+  cashAmount      Int?            @map("cash_amount")
+  cardAmount      Int?            @map("card_amount")
+  transferAmount  Int?            @map("transfer_amount")
+
+  // 지출 (EXPENSE) 필드
+  expenseAmount   Int?            @map("expense_amount")
+  expenseCategory String?         @map("expense_category")
+
+  // 구강용품 판매 (ORAL_PRODUCT_SALE) 필드
+  productCode     String?         @map("product_code")
+  productName     String?         @map("product_name")
+  quantity        Int?            @default(1)
+  unitPrice       Int?            @map("unit_price")
+  discountRate    Decimal?        @map("discount_rate") @db.Decimal(5, 2)
+  paymentMethod   String?         @map("payment_method")
+
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  @@index([clinicId, reportDate])
+  @@index([userId, reportDate])
+  @@index([type, reportDate])
+  @@index([clinicId, type, reportDate])
+  @@map("daily_reports")
+}
+
+model MonthlyAnalyticsCache {
+  id                  String   @id @default(uuid())
+  clinicId            String   @map("clinic_id")
+  year                Int
+  month               Int
+
+  totalRevenue        Int      @map("total_revenue")
+  cashRevenue         Int      @default(0) @map("cash_revenue")
+  cardRevenue         Int      @default(0) @map("card_revenue")
+  transferRevenue     Int      @default(0) @map("transfer_revenue")
+  totalExpense        Int      @default(0) @map("total_expense")
+  expenseByCategory   Json?    @map("expense_by_category")
+
+  oralProductSales    Int      @default(0) @map("oral_product_sales")
+  oralProductQuantity Int      @default(0) @map("oral_product_quantity")
+
+  netProfit           Int      @map("net_profit")
+  profitMargin        Decimal  @map("profit_margin") @db.Decimal(5, 2)
+  dailyAverageRevenue Int      @map("daily_average_revenue")
+
+  transactionCount    Int      @default(0) @map("transaction_count")
+  patientCount        Int      @default(0) @map("patient_count")
+
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@unique([clinicId, year, month])
+  @@index([clinicId])
+  @@map("monthly_analytics_cache")
+}
+
+enum DailyReportType {
+  INCOME
+  EXPENSE
+  ORAL_PRODUCT_SALE
+}
