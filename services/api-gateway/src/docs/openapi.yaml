@@ -1,0 +1,1036 @@
+openapi: 3.0.3
+info:
+  title: VIBE DBA Portal API
+  description: |
+    치과 경영 분석 시스템 (Dental Business Analysis Portal) API 문서
+
+    ## 인증
+    대부분의 API는 JWT 토큰 인증이 필요합니다.
+    - `Authorization: Bearer <token>` 헤더를 사용하세요.
+    - 로그인 API를 통해 토큰을 발급받을 수 있습니다.
+
+    ## 에러 응답
+    모든 에러 응답은 다음 형식을 따릅니다:
+    ```json
+    {
+      "success": false,
+      "error": "에러 코드",
+      "message": "사용자 친화적 메시지"
+    }
+    ```
+  version: 1.0.0
+  contact:
+    name: VIBE Team
+    email: support@vibe-dental.com
+
+servers:
+  - url: http://localhost:8080
+    description: 개발 서버
+  - url: https://api.vibe-dental.com
+    description: 프로덕션 서버
+
+tags:
+  - name: Auth
+    description: 인증 관련 API
+  - name: Revenue
+    description: 매출/수입 관리 API
+  - name: HR
+    description: 인사/급여 관리 API
+  - name: Inventory
+    description: 재고 관리 API
+  - name: Marketing
+    description: 마케팅 관리 API
+  - name: Health
+    description: 서비스 상태 확인 API
+
+paths:
+  # ============ Health Check ============
+  /health:
+    get:
+      tags:
+        - Health
+      summary: API Gateway 상태 확인
+      responses:
+        '200':
+          description: 정상
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /health/services:
+    get:
+      tags:
+        - Health
+      summary: 모든 서비스 상태 확인
+      responses:
+        '200':
+          description: 모든 서비스 정상
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServicesHealthResponse'
+        '503':
+          description: 일부 서비스 비정상
+
+  # ============ Auth ============
+  /api/auth/login:
+    post:
+      tags:
+        - Auth
+      summary: 로그인
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: admin@clinic.com
+                password:
+                  type: string
+                  format: password
+                  example: password123
+      responses:
+        '200':
+          description: 로그인 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: 인증 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/register:
+    post:
+      tags:
+        - Auth
+      summary: 회원가입
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+                - name
+                - clinicName
+              properties:
+                email:
+                  type: string
+                  format: email
+                name:
+                  type: string
+                password:
+                  type: string
+                  format: password
+                clinicName:
+                  type: string
+      responses:
+        '201':
+          description: 회원가입 성공
+        '400':
+          description: 유효성 검증 실패
+
+  /api/auth/me:
+    get:
+      tags:
+        - Auth
+      summary: 현재 사용자 정보 조회
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          description: 인증 필요
+
+  /api/auth/refresh:
+    post:
+      tags:
+        - Auth
+      summary: 토큰 갱신
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: 토큰 갱신 성공
+
+  # ============ Revenue ============
+  /api/revenue/daily:
+    get:
+      tags:
+        - Revenue
+      summary: 일별 매출 조회
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: 조회 날짜 (YYYY-MM-DD)
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DailyRevenueResponse'
+
+    post:
+      tags:
+        - Revenue
+      summary: 일계표 등록
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DailyReportInput'
+      responses:
+        '201':
+          description: 등록 성공
+
+  /api/revenue/monthly:
+    get:
+      tags:
+        - Revenue
+      summary: 월별 매출 조회
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: year
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: month
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonthlyRevenueResponse'
+
+  /api/revenue/analytics:
+    get:
+      tags:
+        - Revenue
+      summary: 매출 분석 데이터 조회
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: 성공
+
+  # ============ HR ============
+  /api/hr/employees:
+    get:
+      tags:
+        - HR
+      summary: 직원 목록 조회
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [ACTIVE, ON_LEAVE, RESIGNED]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeListResponse'
+
+    post:
+      tags:
+        - HR
+      summary: 직원 등록
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmployeeInput'
+      responses:
+        '201':
+          description: 등록 성공
+
+  /api/hr/employees/{id}:
+    get:
+      tags:
+        - HR
+      summary: 직원 상세 조회
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 성공
+
+    put:
+      tags:
+        - HR
+      summary: 직원 정보 수정
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmployeeInput'
+      responses:
+        '200':
+          description: 수정 성공
+
+  /api/hr/salaries:
+    get:
+      tags:
+        - HR
+      summary: 급여 목록 조회
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: year
+          in: query
+          schema:
+            type: integer
+        - name: month
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 성공
+
+    post:
+      tags:
+        - HR
+      summary: 급여 생성
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                year:
+                  type: integer
+                month:
+                  type: integer
+      responses:
+        '201':
+          description: 급여 생성 성공
+
+  /api/hr/incentives:
+    get:
+      tags:
+        - HR
+      summary: 인센티브 현황 조회
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 성공
+
+  # ============ Inventory ============
+  /api/inventory/products:
+    get:
+      tags:
+        - Inventory
+      summary: 품목 목록 조회
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductListResponse'
+
+    post:
+      tags:
+        - Inventory
+      summary: 품목 등록
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductInput'
+      responses:
+        '201':
+          description: 등록 성공
+
+  /api/inventory/stock:
+    get:
+      tags:
+        - Inventory
+      summary: 재고 현황 조회
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [NORMAL, LOW, OUT_OF_STOCK]
+      responses:
+        '200':
+          description: 성공
+
+  /api/inventory/stock/movements:
+    post:
+      tags:
+        - Inventory
+      summary: 입출고 등록
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StockMovementInput'
+      responses:
+        '201':
+          description: 등록 성공
+
+  /api/inventory/suppliers:
+    get:
+      tags:
+        - Inventory
+      summary: 공급업체 목록 조회
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 성공
+
+    post:
+      tags:
+        - Inventory
+      summary: 공급업체 등록
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupplierInput'
+      responses:
+        '201':
+          description: 등록 성공
+
+  # ============ Marketing ============
+  /api/marketing/campaigns:
+    get:
+      tags:
+        - Marketing
+      summary: 캠페인 목록 조회
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [DRAFT, ACTIVE, PAUSED, COMPLETED]
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampaignListResponse'
+
+    post:
+      tags:
+        - Marketing
+      summary: 캠페인 등록
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampaignInput'
+      responses:
+        '201':
+          description: 등록 성공
+
+  /api/marketing/campaigns/{id}:
+    get:
+      tags:
+        - Marketing
+      summary: 캠페인 상세 조회
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 성공
+
+    put:
+      tags:
+        - Marketing
+      summary: 캠페인 수정
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampaignInput'
+      responses:
+        '200':
+          description: 수정 성공
+
+  /api/marketing/analytics:
+    get:
+      tags:
+        - Marketing
+      summary: 마케팅 분석 데이터 조회
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: year
+          in: query
+          schema:
+            type: integer
+        - name: month
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketingAnalyticsResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+        message:
+          type: string
+
+    HealthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        service:
+          type: string
+        status:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    ServicesHealthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        gateway:
+          type: object
+          properties:
+            status:
+              type: string
+            timestamp:
+              type: string
+        services:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              status:
+                type: string
+              responseTime:
+                type: integer
+
+    LoginResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            token:
+              type: string
+            refreshToken:
+              type: string
+            user:
+              $ref: '#/components/schemas/User'
+
+    UserResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/User'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+          enum: [ADMIN, MANAGER, STAFF]
+        clinicId:
+          type: string
+
+    DailyRevenueResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            date:
+              type: string
+              format: date
+            totalIncome:
+              type: number
+            totalExpense:
+              type: number
+            netProfit:
+              type: number
+            entries:
+              type: array
+              items:
+                type: object
+
+    DailyReportInput:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        entries:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+                enum: [income, expense, oral-sale]
+              amount:
+                type: number
+              category:
+                type: string
+              description:
+                type: string
+
+    MonthlyRevenueResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            year:
+              type: integer
+            month:
+              type: integer
+            totalIncome:
+              type: number
+            totalExpense:
+              type: number
+            netProfit:
+              type: number
+            dailyTrend:
+              type: array
+              items:
+                type: object
+
+    EmployeeListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Employee'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+
+    Employee:
+      type: object
+      properties:
+        id:
+          type: string
+        employeeNumber:
+          type: string
+        name:
+          type: string
+        position:
+          type: string
+        department:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        hireDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [ACTIVE, ON_LEAVE, RESIGNED]
+        employmentType:
+          type: string
+          enum: [FULL_TIME, PART_TIME, CONTRACT]
+        baseSalary:
+          type: number
+
+    EmployeeInput:
+      type: object
+      required:
+        - name
+        - position
+        - hireDate
+        - baseSalary
+      properties:
+        employeeNumber:
+          type: string
+        name:
+          type: string
+        position:
+          type: string
+        department:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        hireDate:
+          type: string
+          format: date
+        employmentType:
+          type: string
+          enum: [FULL_TIME, PART_TIME, CONTRACT]
+        baseSalary:
+          type: number
+
+    ProductListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Product'
+
+    Product:
+      type: object
+      properties:
+        id:
+          type: string
+        code:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+        unit:
+          type: string
+        unitPrice:
+          type: number
+        currentStock:
+          type: integer
+        minStock:
+          type: integer
+        maxStock:
+          type: integer
+        status:
+          type: string
+          enum: [NORMAL, LOW, OUT_OF_STOCK]
+
+    ProductInput:
+      type: object
+      required:
+        - name
+        - category
+        - unit
+        - unitPrice
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+        description:
+          type: string
+        unit:
+          type: string
+        unitPrice:
+          type: number
+        minStock:
+          type: integer
+        maxStock:
+          type: integer
+
+    StockMovementInput:
+      type: object
+      required:
+        - productId
+        - type
+        - quantity
+      properties:
+        productId:
+          type: string
+        type:
+          type: string
+          enum: [IN, OUT, ADJUSTMENT]
+        quantity:
+          type: integer
+        reason:
+          type: string
+        note:
+          type: string
+
+    SupplierInput:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        contactPerson:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        address:
+          type: string
+
+    CampaignListResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Campaign'
+
+    Campaign:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+          enum: [SNS, SEARCH, OFFLINE, EMAIL, EVENT]
+        status:
+          type: string
+          enum: [DRAFT, ACTIVE, PAUSED, COMPLETED]
+        budget:
+          type: number
+        spent:
+          type: number
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        targetPatients:
+          type: integer
+        actualPatients:
+          type: integer
+        revenue:
+          type: number
+
+    CampaignInput:
+      type: object
+      required:
+        - name
+        - type
+        - budget
+        - startDate
+        - endDate
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [SNS, SEARCH, OFFLINE, EMAIL, EVENT]
+        budget:
+          type: number
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        targetPatients:
+          type: integer
+        description:
+          type: string
+
+    MarketingAnalyticsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            totalCost:
+              type: number
+            totalRevenue:
+              type: number
+            totalPatients:
+              type: integer
+            roi:
+              type: number
+            channelData:
+              type: array
+              items:
+                type: object
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer

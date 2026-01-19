@@ -3,10 +3,16 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
+import swaggerUi from 'swagger-ui-express';
+import YAML from 'yamljs';
+import path from 'path';
 import { config } from './config';
 import { logger } from './config/logger';
 import { generalLimiter } from './middleware/rateLimiter.middleware';
 import routes from './routes';
+
+// Load OpenAPI specification
+const swaggerDocument = YAML.load(path.join(__dirname, 'docs/openapi.yaml'));
 
 const app = express();
 
@@ -43,6 +49,12 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // General rate limiting
 app.use(generalLimiter);
 
+// Swagger UI
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'VIBE DBA Portal API',
+}));
+
 // Routes
 app.use(routes);
 
@@ -72,6 +84,7 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
 const server = app.listen(config.port, () => {
   logger.info(`🚀 API Gateway running on port ${config.port}`);
   logger.info(`📍 Environment: ${config.nodeEnv}`);
+  logger.info(`📚 API Docs: http://localhost:${config.port}/api-docs`);
   logger.info('📡 Connected services:');
   Object.entries(config.services).forEach(([key, service]) => {
     logger.info(`   - ${service.name}: ${service.url}`);
