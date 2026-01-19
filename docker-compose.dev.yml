@@ -2,10 +2,25 @@ version: '3.8'
 
 services:
   # ============ API Gateway ============
-  gateway:
-    build: ./gateway
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    volumes:
+      - ./services/api-gateway/src:/app/src
     ports:
-      - "80:80"
+      - "8080:3000"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - JWT_SECRET=${JWT_SECRET}
+      - AUTH_SERVICE_URL=http://auth-service:3001
+      - REVENUE_SERVICE_URL=http://revenue-service:3002
+      - HR_SERVICE_URL=http://hr-service:3003
+      - INVENTORY_SERVICE_URL=http://inventory-service:3004
+      - MARKETING_SERVICE_URL=http://marketing-service:3005
+      - CLINIC_SERVICE_URL=http://clinic-service:3006
+      - CORS_ORIGIN=http://localhost:3000
     depends_on:
       - auth-service
       - revenue-service
@@ -157,7 +172,7 @@ services:
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -166,9 +181,9 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=development
-      - NEXT_PUBLIC_API_URL=http://localhost/api
+      - NEXT_PUBLIC_API_URL=http://localhost:8080
     depends_on:
-      - gateway
+      - api-gateway
     networks:
       - vibe-network
 
