@@ -1,0 +1,255 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// 직위
+enum Position {
+  DIRECTOR       // 원장
+  ASSOCIATE      // 부원장
+  DENTIST        // 치과의사
+  HYGIENIST      // 치과위생사
+  ASSISTANT      // 치과조무사
+  COORDINATOR    // 코디네이터
+  DESK           // 데스크
+  MANAGER        // 매니저
+  OTHER          // 기타
+}
+
+// 고용 형태
+enum EmploymentType {
+  FULL_TIME      // 정규직
+  PART_TIME      // 파트타임
+  CONTRACT       // 계약직
+  INTERN         // 인턴
+}
+
+// 직원 상태
+enum EmployeeStatus {
+  ACTIVE         // 재직
+  ON_LEAVE       // 휴직
+  RESIGNED       // 퇴사
+}
+
+// 인센티브 유형
+enum IncentiveType {
+  REVENUE_BASED       // 매출 기반
+  PERFORMANCE_BASED   // 성과 기반
+  BONUS               // 보너스
+  HOLIDAY             // 명절/특별 상여
+  OTHER               // 기타
+}
+
+// 직원 정보
+model Employee {
+  id                String           @id @default(uuid())
+  clinicId          String           @map("clinic_id")
+  userId            String?          @map("user_id")  // Auth Service의 User와 연결 (선택)
+
+  // 기본 정보
+  name              String
+  email             String?
+  phone             String?
+  position          Position
+  employmentType    EmploymentType   @default(FULL_TIME) @map("employment_type")
+  status            EmployeeStatus   @default(ACTIVE)
+
+  // 입사/퇴사 정보
+  hireDate          DateTime         @map("hire_date")
+  resignDate        DateTime?        @map("resign_date")
+  resignReason      String?          @map("resign_reason")
+
+  // 급여 정보
+  baseSalary        Int              @default(0) @map("base_salary")  // 기본급
+
+  // 메모
+  notes             String?          @db.Text
+
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  // Relations
+  salaries          Salary[]
+  salaryHistories   SalaryHistory[]
+  incentives        Incentive[]
+
+  @@index([clinicId])
+  @@index([userId])
+  @@index([status])
+  @@map("employees")
+}
+
+// 급여 기록 (월별)
+model Salary {
+  id                String    @id @default(uuid())
+  clinicId          String    @map("clinic_id")
+  employeeId        String    @map("employee_id")
+
+  // 급여 기간
+  year              Int
+  month             Int
+
+  // 급여 항목
+  baseSalary        Int       @default(0) @map("base_salary")      // 기본급
+  overtimePay       Int       @default(0) @map("overtime_pay")     // 연장근무수당
+  nightPay          Int       @default(0) @map("night_pay")        // 야간수당
+  holidayPay        Int       @default(0) @map("holiday_pay")      // 휴일수당
+  incentive         Int       @default(0)                           // 인센티브
+  bonus             Int       @default(0)                           // 상여금
+  allowances        Int       @default(0)                           // 기타 수당
+
+  // 공제 항목
+  nationalPension   Int       @default(0) @map("national_pension")  // 국민연금
+  healthInsurance   Int       @default(0) @map("health_insurance")  // 건강보험
+  employmentIns     Int       @default(0) @map("employment_ins")    // 고용보험
+  incomeTax         Int       @default(0) @map("income_tax")        // 소득세
+  localIncomeTax    Int       @default(0) @map("local_income_tax")  // 지방소득세
+  otherDeductions   Int       @default(0) @map("other_deductions")  // 기타 공제
+
+  // 실수령액
+  netSalary         Int       @default(0) @map("net_salary")
+
+  // 지급 정보
+  paymentDate       DateTime? @map("payment_date")
+  isPaid            Boolean   @default(false) @map("is_paid")
+
+  notes             String?   @db.Text
+
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  employee          Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, year, month])
+  @@index([clinicId])
+  @@index([year, month])
+  @@map("salaries")
+}
+
+// 급여 변동 이력
+model SalaryHistory {
+  id                String    @id @default(uuid())
+  clinicId          String    @map("clinic_id")
+  employeeId        String    @map("employee_id")
+
+  // 변동 정보
+  effectiveDate     DateTime  @map("effective_date")
+  previousSalary    Int       @map("previous_salary")
+  newSalary         Int       @map("new_salary")
+  changeReason      String?   @map("change_reason")
+  changedBy         String    @map("changed_by")  // 변경한 사용자 ID
+
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  employee          Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId])
+  @@index([employeeId])
+  @@map("salary_histories")
+}
+
+// 인센티브 기록
+model Incentive {
+  id                String         @id @default(uuid())
+  clinicId          String         @map("clinic_id")
+  employeeId        String         @map("employee_id")
+
+  // 인센티브 정보
+  year              Int
+  month             Int
+  type              IncentiveType
+
+  // 계산 기준 (매출 기반인 경우)
+  revenueAmount     Int?           @map("revenue_amount")     // 해당 월 매출
+  targetAmount      Int?           @map("target_amount")      // 목표 매출
+  achievementRate   Float?         @map("achievement_rate")   // 달성률 (%)
+
+  // 인센티브 금액
+  calculatedAmount  Int            @default(0) @map("calculated_amount")  // 계산된 금액
+  adjustedAmount    Int?           @map("adjusted_amount")    // 조정된 금액
+  finalAmount       Int            @default(0) @map("final_amount")       // 최종 지급액
+
+  // 지급 정보
+  isPaid            Boolean        @default(false) @map("is_paid")
+  paidDate          DateTime?      @map("paid_date")
+
+  notes             String?        @db.Text
+
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
+
+  // Relations
+  employee          Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, year, month, type])
+  @@index([clinicId])
+  @@index([year, month])
+  @@map("incentives")
+}
+
+// 목표 매출
+model TargetRevenue {
+  id                String    @id @default(uuid())
+  clinicId          String    @map("clinic_id")
+
+  // 목표 기간
+  year              Int
+  month             Int?      // null이면 연간 목표
+
+  // 목표 금액
+  targetAmount      Int       @map("target_amount")
+
+  // 실제 달성 (캐시)
+  actualAmount      Int?      @map("actual_amount")
+  achievementRate   Float?    @map("achievement_rate")
+  lastSyncedAt      DateTime? @map("last_synced_at")
+
+  notes             String?   @db.Text
+
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@unique([clinicId, year, month])
+  @@index([clinicId])
+  @@index([year])
+  @@map("target_revenues")
+}
+
+// 인센티브 정책
+model IncentivePolicy {
+  id                String    @id @default(uuid())
+  clinicId          String    @map("clinic_id")
+
+  name              String
+  description       String?   @db.Text
+
+  // 적용 대상
+  position          Position?  // null이면 전체 적용
+
+  // 계산 방식
+  calculationType   String    @map("calculation_type")  // PERCENTAGE, FIXED, TIERED
+
+  // 기준값 (JSON으로 저장)
+  // PERCENTAGE: { "rate": 5 } -> 매출의 5%
+  // FIXED: { "amount": 100000 } -> 고정 10만원
+  // TIERED: { "tiers": [{ "min": 0, "max": 100, "rate": 3 }, { "min": 100, "max": null, "rate": 5 }] }
+  calculationConfig String    @map("calculation_config") @db.Text
+
+  // 최소 달성률 (이 이상 달성해야 인센티브 지급)
+  minAchievementRate Float?   @map("min_achievement_rate")
+
+  isActive          Boolean   @default(true) @map("is_active")
+
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@index([clinicId])
+  @@index([isActive])
+  @@map("incentive_policies")
+}
