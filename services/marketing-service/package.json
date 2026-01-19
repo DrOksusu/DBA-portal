@@ -1,0 +1,36 @@
+{
+  "name": "@vibe/marketing-service",
+  "version": "1.0.0",
+  "description": "Marketing Management Service - 마케팅 비용 및 효과 분석",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "express": "^4.21.1",
+    "cors": "^2.8.5",
+    "cookie-parser": "^1.4.7",
+    "zod": "^3.23.8",
+    "axios": "^1.7.7",
+    "@vibe/types": "workspace:*",
+    "@vibe/utils": "workspace:*",
+    "@vibe/auth-middleware": "workspace:*",
+    "@vibe/service-client": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/cors": "^2.8.17",
+    "@types/cookie-parser": "^1.4.7",
+    "@types/node": "^22.9.0",
+    "typescript": "^5.6.3",
+    "tsx": "^4.19.2",
+    "prisma": "^5.22.0"
+  }
+}

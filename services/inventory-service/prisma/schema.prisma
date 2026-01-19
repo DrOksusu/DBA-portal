@@ -1,0 +1,200 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// 제품 카테고리
+enum ProductCategory {
+  TOOTHBRUSH       // 칫솔
+  TOOTHPASTE       // 치약
+  MOUTHWASH        // 구강청결제
+  FLOSS            // 치실
+  INTERDENTAL      // 치간칫솔
+  WHITENING        // 미백제품
+  KIDS             // 어린이용품
+  ORTHODONTIC      // 교정용품
+  IMPLANT_CARE     // 임플란트 관리용품
+  GUM_CARE         // 잇몸 관리용품
+  OTHER            // 기타
+}
+
+// 입출고 유형
+enum StockMovementType {
+  IN_PURCHASE      // 구매 입고
+  IN_RETURN        // 반품 입고
+  IN_ADJUSTMENT    // 재고 조정 (증가)
+  OUT_SALE         // 판매 출고
+  OUT_SAMPLE       // 샘플 출고
+  OUT_DAMAGED      // 파손/폐기
+  OUT_ADJUSTMENT   // 재고 조정 (감소)
+}
+
+// 제품 정보
+model Product {
+  id                String          @id @default(uuid())
+  clinicId          String          @map("clinic_id")
+
+  // 제품 정보
+  code              String          // 제품 코드
+  name              String          // 제품명
+  category          ProductCategory
+  brand             String?         // 브랜드
+  description       String?         @db.Text
+
+  // 가격 정보
+  purchasePrice     Int             @default(0) @map("purchase_price")  // 매입가
+  sellingPrice      Int             @default(0) @map("selling_price")   // 판매가
+
+  // 재고 관리
+  currentStock      Int             @default(0) @map("current_stock")   // 현재 재고
+  minStock          Int             @default(0) @map("min_stock")       // 최소 재고 (알림 기준)
+  maxStock          Int?            @map("max_stock")                   // 최대 재고
+
+  // 상태
+  isActive          Boolean         @default(true) @map("is_active")
+
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  stockMovements    StockMovement[]
+  suppliers         ProductSupplier[]
+
+  @@unique([clinicId, code])
+  @@index([clinicId])
+  @@index([category])
+  @@index([isActive])
+  @@map("products")
+}
+
+// 공급업체
+model Supplier {
+  id                String          @id @default(uuid())
+  clinicId          String          @map("clinic_id")
+
+  name              String          // 업체명
+  contactPerson     String?         @map("contact_person")  // 담당자
+  phone             String?
+  email             String?
+  address           String?         @db.Text
+  notes             String?         @db.Text
+
+  isActive          Boolean         @default(true) @map("is_active")
+
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  products          ProductSupplier[]
+  stockMovements    StockMovement[]
+
+  @@index([clinicId])
+  @@map("suppliers")
+}
+
+// 제품-공급업체 연결
+model ProductSupplier {
+  id                String    @id @default(uuid())
+  productId         String    @map("product_id")
+  supplierId        String    @map("supplier_id")
+
+  supplierProductCode String? @map("supplier_product_code")  // 공급업체 제품코드
+  unitPrice         Int?      @map("unit_price")             // 공급가
+  leadDays          Int?      @map("lead_days")              // 리드타임 (일)
+  isPrimary         Boolean   @default(false) @map("is_primary")  // 주 공급업체 여부
+
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  product           Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  supplier          Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, supplierId])
+  @@map("product_suppliers")
+}
+
+// 입출고 기록
+model StockMovement {
+  id                String            @id @default(uuid())
+  clinicId          String            @map("clinic_id")
+  productId         String            @map("product_id")
+
+  // 입출고 정보
+  type              StockMovementType
+  quantity          Int               // 수량 (양수)
+  unitPrice         Int?              @map("unit_price")  // 단가
+  totalAmount       Int?              @map("total_amount") // 총액
+
+  // 관련 정보
+  supplierId        String?           @map("supplier_id")
+  referenceNo       String?           @map("reference_no")  // 참조번호 (주문번호, 영수증번호 등)
+  movementDate      DateTime          @map("movement_date")
+
+  // 재고 스냅샷
+  stockBefore       Int               @map("stock_before")
+  stockAfter        Int               @map("stock_after")
+
+  notes             String?           @db.Text
+  createdBy         String            @map("created_by")  // 등록자 ID
+
+  createdAt         DateTime          @default(now()) @map("created_at")
+
+  // Relations
+  product           Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  supplier          Supplier?         @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  @@index([clinicId])
+  @@index([productId])
+  @@index([movementDate])
+  @@index([type])
+  @@map("stock_movements")
+}
+
+// 재고 실사 기록
+model StockCheck {
+  id                String    @id @default(uuid())
+  clinicId          String    @map("clinic_id")
+
+  checkDate         DateTime  @map("check_date")
+  checkedBy         String    @map("checked_by")
+
+  // 실사 결과 (JSON)
+  // [{ productId, systemStock, actualStock, difference, notes }]
+  results           String    @db.Text
+
+  status            String    @default("DRAFT")  // DRAFT, COMPLETED, ADJUSTED
+  adjustedAt        DateTime? @map("adjusted_at")
+  adjustedBy        String?   @map("adjusted_by")
+
+  notes             String?   @db.Text
+
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@index([clinicId])
+  @@index([checkDate])
+  @@map("stock_checks")
+}
+
+// 재고 알림 설정
+model StockAlert {
+  id                String    @id @default(uuid())
+  clinicId          String    @map("clinic_id")
+  productId         String    @map("product_id")
+
+  alertType         String    @map("alert_type")  // LOW_STOCK, EXPIRING, OVERSTOCK
+  threshold         Int       // 알림 기준값
+  isActive          Boolean   @default(true) @map("is_active")
+
+  lastAlertedAt     DateTime? @map("last_alerted_at")
+
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@unique([clinicId, productId, alertType])
+  @@map("stock_alerts")
+}

@@ -1,0 +1,35 @@
+{
+  "name": "@vibe/inventory-service",
+  "version": "1.0.0",
+  "description": "Inventory Management Service - 구강용품 재고 관리",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "express": "^4.21.1",
+    "cors": "^2.8.5",
+    "cookie-parser": "^1.4.7",
+    "zod": "^3.23.8",
+    "@vibe/types": "workspace:*",
+    "@vibe/utils": "workspace:*",
+    "@vibe/auth-middleware": "workspace:*",
+    "@vibe/service-client": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/cors": "^2.8.17",
+    "@types/cookie-parser": "^1.4.7",
+    "@types/node": "^22.9.0",
+    "typescript": "^5.6.3",
+    "tsx": "^4.19.2",
+    "prisma": "^5.22.0"
+  }
+}

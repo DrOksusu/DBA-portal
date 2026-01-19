@@ -1,0 +1,226 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// 마케팅 채널
+enum MarketingChannel {
+  NAVER_PLACE      // 네이버 플레이스
+  NAVER_BLOG       // 네이버 블로그
+  NAVER_SEARCH     // 네이버 검색광고
+  GOOGLE_ADS       // 구글 광고
+  INSTAGRAM        // 인스타그램
+  FACEBOOK         // 페이스북
+  YOUTUBE          // 유튜브
+  KAKAO            // 카카오
+  OFFLINE          // 오프라인 (전단, 현수막 등)
+  REFERRAL         // 지인소개
+  EVENT            // 이벤트/프로모션
+  OTHER            // 기타
+}
+
+// 캠페인 상태
+enum CampaignStatus {
+  DRAFT            // 준비중
+  ACTIVE           // 진행중
+  PAUSED           // 일시중지
+  COMPLETED        // 완료
+  CANCELLED        // 취소
+}
+
+// 비용 유형
+enum ExpenseType {
+  ADVERTISING      // 광고비
+  CONTENT          // 콘텐츠 제작비
+  PLATFORM         // 플랫폼 수수료
+  AGENCY           // 대행사 비용
+  MATERIAL         // 인쇄물/제작물
+  EVENT            // 이벤트 비용
+  OTHER            // 기타
+}
+
+// 마케팅 캠페인
+model Campaign {
+  id                String          @id @default(uuid())
+  clinicId          String          @map("clinic_id")
+
+  // 캠페인 정보
+  name              String
+  description       String?         @db.Text
+  channel           MarketingChannel
+  status            CampaignStatus  @default(DRAFT)
+
+  // 기간
+  startDate         DateTime        @map("start_date")
+  endDate           DateTime?       @map("end_date")
+
+  // 예산
+  budgetAmount      Int             @default(0) @map("budget_amount")
+  spentAmount       Int             @default(0) @map("spent_amount")  // 집계 필드
+
+  // 목표
+  targetMetric      String?         @map("target_metric")  // 목표 지표 (ex: 신규 환자 수)
+  targetValue       Int?            @map("target_value")   // 목표 값
+
+  // 성과 (캐시)
+  achievedValue     Int?            @map("achieved_value")
+  roi               Float?                                  // Return on Investment (%)
+
+  notes             String?         @db.Text
+
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  expenses          MarketingExpense[]
+  performances      CampaignPerformance[]
+
+  @@index([clinicId])
+  @@index([status])
+  @@index([channel])
+  @@index([startDate, endDate])
+  @@map("campaigns")
+}
+
+// 마케팅 비용
+model MarketingExpense {
+  id                String          @id @default(uuid())
+  clinicId          String          @map("clinic_id")
+  campaignId        String?         @map("campaign_id")
+
+  // 비용 정보
+  type              ExpenseType
+  channel           MarketingChannel?
+  description       String
+  amount            Int
+
+  // 날짜
+  expenseDate       DateTime        @map("expense_date")
+
+  // 영수증/증빙
+  receiptNo         String?         @map("receipt_no")
+  vendor            String?         // 지출처
+
+  notes             String?         @db.Text
+  createdBy         String          @map("created_by")
+
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  campaign          Campaign?       @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([clinicId])
+  @@index([campaignId])
+  @@index([expenseDate])
+  @@index([channel])
+  @@map("marketing_expenses")
+}
+
+// 캠페인 성과 기록 (일별/주별)
+model CampaignPerformance {
+  id                String          @id @default(uuid())
+  clinicId          String          @map("clinic_id")
+  campaignId        String          @map("campaign_id")
+
+  // 기간
+  recordDate        DateTime        @map("record_date")
+
+  // 온라인 지표
+  impressions       Int             @default(0)    // 노출수
+  clicks            Int             @default(0)    // 클릭수
+  ctr               Float?                          // Click-Through Rate (%)
+  conversions       Int             @default(0)    // 전환수 (예약, 문의)
+  conversionRate    Float?          @map("conversion_rate")  // 전환율 (%)
+
+  // 비용 지표
+  cost              Int             @default(0)    // 해당 기간 비용
+  cpc               Float?                          // Cost Per Click
+  cpa               Float?                          // Cost Per Acquisition
+
+  // 신규 환자 관련
+  newPatients       Int             @default(0)    @map("new_patients")
+  consultations     Int             @default(0)    // 상담 건수
+
+  notes             String?         @db.Text
+
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  // Relations
+  campaign          Campaign        @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, recordDate])
+  @@index([clinicId])
+  @@index([recordDate])
+  @@map("campaign_performances")
+}
+
+// 신규 환자 유입 경로 추적
+model PatientSource {
+  id                String          @id @default(uuid())
+  clinicId          String          @map("clinic_id")
+
+  // 환자 정보 (익명화)
+  patientRef        String?         @map("patient_ref")  // 환자 참조 ID (선택)
+  visitDate         DateTime        @map("visit_date")
+
+  // 유입 경로
+  channel           MarketingChannel
+  campaignId        String?         @map("campaign_id")
+  referralSource    String?         @map("referral_source")  // 상세 유입 경로
+
+  // 첫 방문 정보
+  treatmentType     String?         @map("treatment_type")  // 첫 진료 유형
+  initialRevenue    Int             @default(0) @map("initial_revenue")  // 첫 진료 매출
+
+  // 이후 추적 (업데이트)
+  totalVisits       Int             @default(1) @map("total_visits")
+  totalRevenue      Int             @default(0) @map("total_revenue")
+  lastVisitDate     DateTime?       @map("last_visit_date")
+
+  notes             String?         @db.Text
+
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  @@index([clinicId])
+  @@index([channel])
+  @@index([visitDate])
+  @@index([campaignId])
+  @@map("patient_sources")
+}
+
+// 월별 마케팅 분석 캐시
+model MonthlyMarketingAnalytics {
+  id                String          @id @default(uuid())
+  clinicId          String          @map("clinic_id")
+
+  year              Int
+  month             Int
+
+  // 비용 요약
+  totalExpense      Int             @default(0) @map("total_expense")
+  expenseByChannel  String          @map("expense_by_channel") @db.Text  // JSON
+
+  // 성과 요약
+  totalNewPatients  Int             @default(0) @map("total_new_patients")
+  newPatientsByChannel String       @map("new_patients_by_channel") @db.Text  // JSON
+
+  // ROI 분석
+  estimatedRevenue  Int             @default(0) @map("estimated_revenue")
+  roi               Float?
+
+  lastCalculatedAt  DateTime        @map("last_calculated_at")
+
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  @@unique([clinicId, year, month])
+  @@index([clinicId])
+  @@map("monthly_marketing_analytics")
+}
